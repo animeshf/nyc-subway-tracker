@@ -13,6 +13,7 @@ from nyct_gtfs import NYCTFeed
 import os
 import json
 from datetime import datetime
+import pytz
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -126,10 +127,14 @@ def get_arrivals():
                                             if route_id.endswith('X'):
                                                 route_id = route_id[:-1]  # Remove 'X' suffix
                                             
+                                            # Convert to Eastern Time for display
+                                            eastern = pytz.timezone('America/New_York')
+                                            arrival_time_et = arrival_time.astimezone(eastern)
+                                            
                                             arrival_info = {
                                                 'route': route_id,
                                                 'direction': direction,
-                                                'arrival_time': arrival_time.strftime('%I:%M:%S %p'),
+                                                'arrival_time': arrival_time_et.strftime('%I:%M:%S %p'),
                                                 'minutes_until_arrival': max(0, minutes_until)  # Don't show negative numbers
                                             }
                                             all_arrivals.append(arrival_info)
