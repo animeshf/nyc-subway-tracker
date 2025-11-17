@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYC Subway Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚇 NYC Subway Tracker</h1>
+            <p>Real-time subway arrival information</p>
+        </header>
+
+        <div class="search-section">
+            <div class="input-group">
+                <label for="station-search">Search for a Station:</label>
+                <input type="text" id="station-search" placeholder="Type station name (e.g., Times Square, Court Sq)..." autocomplete="off">
+                <div id="suggestions" class="suggestions"></div>
+            </div>
+            
+            <button id="search-btn" onclick="searchArrivals()">Get Arrivals</button>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Fetching real-time data...</p>
+        </div>
+
+        <div id="error-message" class="error-message" style="display: none;"></div>
+
+        <div id="results" class="results-section" style="display: none;">
+            <div id="station-info"></div>
+            <div id="arrivals-list"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
