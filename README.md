@@ -65,11 +65,6 @@ python app.py
 http://localhost:5000
 ```
 
-Or use the provided startup script:
-```bash
-./start.sh
-```
-
 ## Usage
 
 ### Search for a Station
@@ -152,7 +147,6 @@ nyc-subway-tracker/
 ├── generate_stations.py    # Script to generate station data
 ├── requirements.txt        # Python dependencies
 ├── stations.json          # Station data (generated)
-├── start.sh               # Startup script
 ├── static/
 │   ├── index.html         # Main page
 │   ├── app.js             # Frontend logic
