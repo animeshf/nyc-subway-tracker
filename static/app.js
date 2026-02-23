@@ -6,11 +6,14 @@
 // Use relative URLs since we're served from the same Flask app
 const API_BASE_URL = '';
 
+const AUTO_REFRESH_INTERVAL_MS = 30000;
+
 // Global state
-let allStations = [];          // All available stations for search
+let allStations = [];           // All available stations for search
 let currentArrivalsData = null; // Current station's arrival data
 let selectedRoute = null;       // Currently selected train filter (or null for all)
 let currentStationId = null;    // Currently displayed station ID
+let autoRefreshTimer = null;    // Auto-refresh interval handle
 
 // Load stations on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,11 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadStations() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/stations`);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         allStations = await response.json();
     } catch (error) {
         showError('Error loading stations. Please refresh the page.');
@@ -38,40 +41,40 @@ async function loadStations() {
 
 /**
  * Set up search functionality with autocomplete
- * Includes keyboard navigation (arrow keys) and Enter key support
+ * Includes keyboard navigation (arrow keys), Enter key, and Escape key support
  */
 function setupSearch() {
     const searchInput = document.getElementById('station-search');
     const suggestionsDiv = document.getElementById('suggestions');
-    
+
     // Show autocomplete suggestions as user types
     searchInput.addEventListener('input', (e) => {
         const searchTerm = e.target.value.trim().toLowerCase();
-        
+
         if (searchTerm.length < 2) {
             suggestionsDiv.innerHTML = '';
             suggestionsDiv.style.display = 'none';
             return;
         }
-        
+
         // Filter stations
         const matches = allStations.filter(station =>
             station.name.toLowerCase().includes(searchTerm)
         ).slice(0, 8); // Show max 8 suggestions
-        
+
         if (matches.length === 0) {
             suggestionsDiv.innerHTML = '<div class="suggestion-item no-match">No stations found</div>';
             suggestionsDiv.style.display = 'block';
             return;
         }
-        
-        suggestionsDiv.innerHTML = matches.map(station => 
+
+        suggestionsDiv.innerHTML = matches.map(station =>
             `<div class="suggestion-item" data-id="${station.id}" data-name="${station.name}">
                 ${station.name}
             </div>`
         ).join('');
         suggestionsDiv.style.display = 'block';
-        
+
         // Add click handlers to suggestions
         suggestionsDiv.querySelectorAll('.suggestion-item').forEach(item => {
             item.addEventListener('click', () => {
@@ -85,30 +88,33 @@ function setupSearch() {
             });
         });
     });
-    
+
     // Hide suggestions when clicking outside
     document.addEventListener('click', (e) => {
         if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
             suggestionsDiv.style.display = 'none';
         }
     });
-    
-    // Allow Enter key in search to trigger arrivals
-    searchInput.addEventListener('keypress', (e) => {
+
+    // Keyboard handling: Enter to search, Escape to close, arrows to navigate
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+
         if (e.key === 'Enter') {
             suggestionsDiv.style.display = 'none';
             searchArrivals();
+            return;
         }
-    });
-    
-    // Handle keyboard navigation (arrow keys)
-    searchInput.addEventListener('keydown', (e) => {
+
         const items = suggestionsDiv.querySelectorAll('.suggestion-item:not(.no-match)');
         if (items.length === 0) return;
-        
+
         const active = suggestionsDiv.querySelector('.suggestion-item.active');
         let currentIndex = active ? Array.from(items).indexOf(active) : -1;
-        
+
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             currentIndex = (currentIndex + 1) % items.length;
@@ -132,32 +138,27 @@ function updateActiveSuggestion(items, index) {
 
 async function searchArrivals() {
     const searchValue = document.getElementById('station-search').value.trim();
-    
+
     if (!searchValue) {
         showError('Please enter a station name');
         return;
     }
-    
-    let stationId = null;
-    
-    // Try exact name match first (case insensitive)
-    let station = allStations.find(s => 
+
+    let station = allStations.find(s =>
         s.name.toLowerCase() === searchValue.toLowerCase()
     );
-    
+
     if (!station) {
-        // Try exact ID match
-        station = allStations.find(s => 
+        station = allStations.find(s =>
             s.id.toLowerCase() === searchValue.toLowerCase()
         );
     }
-    
+
     if (!station) {
-        // Try partial name match
-        const matches = allStations.filter(s => 
+        const matches = allStations.filter(s =>
             s.name.toLowerCase().includes(searchValue.toLowerCase())
         );
-        
+
         if (matches.length === 1) {
             station = matches[0];
         } else if (matches.length > 1) {
@@ -168,29 +169,27 @@ async function searchArrivals() {
             return;
         }
     }
-    
-    stationId = station.id;
-    currentStationId = stationId; // Store for refresh
-    
-    // Hide previous results and errors
+
+    currentStationId = station.id;
+
     document.getElementById('results').style.display = 'none';
     document.getElementById('error-message').style.display = 'none';
     document.getElementById('loading').style.display = 'block';
-    
+
     try {
-        const response = await fetch(`${API_BASE_URL}/api/arrivals?station_id=${encodeURIComponent(stationId)}`);
-        
+        const response = await fetch(`${API_BASE_URL}/api/arrivals?station_id=${encodeURIComponent(currentStationId)}`);
+
         if (!response.ok) {
             const data = await response.json();
             document.getElementById('loading').style.display = 'none';
             showError(data.error || 'Error fetching arrivals');
             return;
         }
-        
+
         const data = await response.json();
-        
         document.getElementById('loading').style.display = 'none';
         displayResults(data);
+        startAutoRefresh();
     } catch (error) {
         document.getElementById('loading').style.display = 'none';
         showError(`Error: ${error.message}. Make sure the backend server is running.`);
@@ -198,17 +197,14 @@ async function searchArrivals() {
 }
 
 function displayResults(data) {
-    // Store data globally for filtering
     currentArrivalsData = data;
     selectedRoute = null;
-    
+
     const resultsDiv = document.getElementById('results');
     const stationInfo = document.getElementById('station-info');
-    const arrivalsList = document.getElementById('arrivals-list');
-    
-    // Find station name from our station list
+
     const station = allStations.find(s => s.id === data.station_id);
-    
+
     let stationHeader = '';
     if (station) {
         stationHeader = `
@@ -223,46 +219,51 @@ function displayResults(data) {
             <div id="route-filters"></div>
         `;
     }
-    
+
     stationInfo.innerHTML = stationHeader;
     stationInfo.style.display = 'block';
-    
+
     if (!data.arrivals || data.arrivals.length === 0) {
-        arrivalsList.innerHTML = '<div class="no-arrivals">No upcoming arrivals found. Please verify the station or try again later.</div>';
+        document.getElementById('arrivals-list').innerHTML =
+            '<div class="no-arrivals">No upcoming arrivals found. Please verify the station or try again later.</div>';
         resultsDiv.style.display = 'block';
         return;
     }
-    
-    // Create route filter buttons
+
     const routes = [...new Set(data.arrivals.map(a => a.route))].sort();
-    
-    const filtersDiv = document.getElementById('route-filters');
-    if (filtersDiv && routes.length > 0) {
-        filtersDiv.innerHTML = `
-            <div class="filter-label">Filter by train:</div>
-            <div class="filter-buttons">
-                <button class="filter-btn active" onclick="filterByRoute(null)">All</button>
-                ${routes.map(route => 
-                    `<button class="filter-btn filter-route-${route}" onclick="filterByRoute('${route}')">${route}</button>`
-                ).join('')}
-            </div>
-        `;
-    }
-    
-    // Display summary view (next arrival for each route/direction)
+    renderRouteFilters(routes, null);
     displaySummaryView(data.arrivals);
-    
+
     resultsDiv.style.display = 'block';
+}
+
+/**
+ * Renders the route filter button bar.
+ * Extracted to avoid duplication between displayResults and refreshArrivals.
+ */
+function renderRouteFilters(routes, activeRoute) {
+    const filtersDiv = document.getElementById('route-filters');
+    if (!filtersDiv || routes.length === 0) return;
+
+    filtersDiv.innerHTML = `
+        <div class="filter-label">Filter by train:</div>
+        <div class="filter-buttons">
+            <button class="filter-btn ${activeRoute === null ? 'active' : ''}" onclick="filterByRoute(null, event)">All</button>
+            ${routes.map(route =>
+                `<button class="filter-btn filter-route-${route} ${activeRoute === route ? 'active' : ''}" onclick="filterByRoute('${route}', event)">${route}</button>`
+            ).join('')}
+        </div>
+    `;
 }
 
 function displaySummaryView(arrivals) {
     const arrivalsList = document.getElementById('arrivals-list');
-    
+
     arrivalsList.innerHTML = arrivals.map(arrival => {
-        const minutesText = arrival.minutes_until_arrival <= 0 ? 'Arriving' : 
-                           arrival.minutes_until_arrival === 1 ? '1 min' : 
+        const minutesText = arrival.minutes_until_arrival <= 0 ? 'Arriving' :
+                           arrival.minutes_until_arrival === 1 ? '1 min' :
                            `${arrival.minutes_until_arrival} mins`;
-        
+
         return `
             <div class="arrival-card">
                 <div class="route-badge route-${arrival.route}">
@@ -283,16 +284,14 @@ function displaySummaryView(arrivals) {
 
 function displayFilteredView(route) {
     const arrivalsList = document.getElementById('arrivals-list');
-    
-    // Filter all arrivals for this route
+
     const filteredArrivals = currentArrivalsData.all_arrivals.filter(a => a.route === route);
-    
+
     if (filteredArrivals.length === 0) {
         arrivalsList.innerHTML = '<div class="no-arrivals">No arrivals found for this train in the next 30 minutes.</div>';
         return;
     }
-    
-    // Group by direction
+
     const byDirection = {};
     filteredArrivals.forEach(arrival => {
         if (!byDirection[arrival.direction]) {
@@ -300,8 +299,7 @@ function displayFilteredView(route) {
         }
         byDirection[arrival.direction].push(arrival);
     });
-    
-    // Display grouped by direction
+
     let html = '';
     Object.keys(byDirection).forEach(direction => {
         html += `
@@ -312,8 +310,8 @@ function displayFilteredView(route) {
                 </h3>
                 <div class="arrivals-timeline">
                     ${byDirection[direction].map(arrival => {
-                        const minutesText = arrival.minutes_until_arrival <= 0 ? 'Arriving' : 
-                                           arrival.minutes_until_arrival === 1 ? '1 min' : 
+                        const minutesText = arrival.minutes_until_arrival <= 0 ? 'Arriving' :
+                                           arrival.minutes_until_arrival === 1 ? '1 min' :
                                            `${arrival.minutes_until_arrival} mins`;
                         return `
                             <div class="timeline-item">
@@ -326,24 +324,19 @@ function displayFilteredView(route) {
             </div>
         `;
     });
-    
+
     arrivalsList.innerHTML = html;
 }
 
-function filterByRoute(route) {
+function filterByRoute(route, event) {
     selectedRoute = route;
-    
-    // Update active button
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
-    
+
     if (route === null) {
-        // Show summary view
         displaySummaryView(currentArrivalsData.arrivals);
     } else {
-        // Show filtered view for specific route
         displayFilteredView(route);
     }
 }
@@ -356,61 +349,54 @@ function showError(message) {
 
 async function refreshArrivals() {
     if (!currentStationId) return;
-    
-    // Add spinning animation
+
     const refreshBtn = document.getElementById('refresh-btn');
     if (refreshBtn) {
         refreshBtn.classList.add('spinning');
         refreshBtn.disabled = true;
     }
-    
-    // Hide error messages
+
     document.getElementById('error-message').style.display = 'none';
-    
+
     try {
         const response = await fetch(`${API_BASE_URL}/api/arrivals?station_id=${encodeURIComponent(currentStationId)}`);
-        
+
         if (!response.ok) {
             const data = await response.json();
             showError(data.error || 'Error fetching arrivals');
             return;
         }
-        
+
         const data = await response.json();
-        
-        // Update the display with new data
         currentArrivalsData = data;
-        
-        // Re-render based on current filter state
+
         if (selectedRoute === null) {
             displaySummaryView(data.arrivals);
         } else {
             displayFilteredView(selectedRoute);
         }
-        
-        // Update the filters in case routes changed
+
         const routes = [...new Set(data.arrivals.map(a => a.route))].sort();
-        const filtersDiv = document.getElementById('route-filters');
-        if (filtersDiv && routes.length > 0) {
-            const currentFilter = selectedRoute;
-            filtersDiv.innerHTML = `
-                <div class="filter-label">Filter by train:</div>
-                <div class="filter-buttons">
-                    <button class="filter-btn ${currentFilter === null ? 'active' : ''}" onclick="filterByRoute(null)">All</button>
-                    ${routes.map(route => 
-                        `<button class="filter-btn filter-route-${route} ${currentFilter === route ? 'active' : ''}" onclick="filterByRoute('${route}')">${route}</button>`
-                    ).join('')}
-                </div>
-            `;
-        }
-        
+        renderRouteFilters(routes, selectedRoute);
+
+        // Reset the auto-refresh timer so we don't refresh again immediately after a manual one
+        startAutoRefresh();
     } catch (error) {
         showError(`Error: ${error.message}`);
     } finally {
-        // Remove spinning animation
         if (refreshBtn) {
             refreshBtn.classList.remove('spinning');
             refreshBtn.disabled = false;
         }
     }
+}
+
+/**
+ * Starts (or restarts) the 30-second auto-refresh timer.
+ * Calling this resets the countdown, so a manual refresh won't be immediately
+ * followed by an automatic one.
+ */
+function startAutoRefresh() {
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    autoRefreshTimer = setInterval(refreshArrivals, AUTO_REFRESH_INTERVAL_MS);
 }
