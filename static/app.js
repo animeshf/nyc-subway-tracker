@@ -14,6 +14,7 @@ const MAX_FAVORITE_STATIONS = 8;
 let allStations = [];             // All available stations for search
 let currentArrivalsData = null;   // Current station's arrival data
 let selectedRoute = null;         // Currently selected train filter (or null for all)
+let selectedDirectionGroup = null; // Top-tier direction family filter (or null for all)
 let currentStationId = null;      // Currently displayed station ID
 let selectedDirectoryRoute = null; // Selected route from route directory
 let recentStationIds = [];        // Recently viewed station IDs (localStorage)
@@ -344,6 +345,7 @@ function displayResults(data) {
     // Store data globally for filtering
     currentArrivalsData = data;
     selectedRoute = null;
+    selectedDirectionGroup = null;
     selectedDirectoryRoute = null;
     syncRouteDirectoryActive(null);
 
@@ -374,6 +376,7 @@ function displayResults(data) {
                 </div>
             </div>
             <div class="route-count">${routeCount} line${routeCount === 1 ? '' : 's'} active in the next 30 minutes</div>
+            <div id="direction-filters"></div>
             <div id="route-filters"></div>
         `;
     }
@@ -387,10 +390,12 @@ function displayResults(data) {
         return;
     }
 
+    const allArrivals = data.all_arrivals || data.arrivals || [];
+    updateDirectionFilters(allArrivals, null);
     updateRouteFilters(data.arrivals, null);
 
     // Display route-scoped bounds view
-    displaySummaryView(data.all_arrivals || data.arrivals || []);
+    displaySummaryView(allArrivals);
 
     resultsDiv.style.display = 'block';
 }
@@ -412,12 +417,73 @@ function updateRouteFilters(arrivals, currentFilter) {
     `;
 }
 
+const DIRECTION_GROUPS = [
+    { key: 'uptown', label: 'Uptown', test: text => text.includes('uptown') || text.includes('northbound') || text.includes(' n ') || text === 'n' },
+    { key: 'downtown', label: 'Downtown', test: text => text.includes('downtown') || text.includes('southbound') || text.includes(' s ') || text === 's' },
+    { key: 'queens', label: 'Queens-bound', test: text => text.includes('queens') },
+    { key: 'brooklyn', label: 'Brooklyn-bound', test: text => text.includes('brooklyn') },
+    { key: 'bronx', label: 'Bronx-bound', test: text => text.includes('bronx') },
+    { key: 'manhattan', label: 'Manhattan-bound', test: text => text.includes('manhattan') },
+    { key: 'staten_island', label: 'Staten Island-bound', test: text => text.includes('staten') }
+];
+
+function normalizeDirectionText(direction) {
+    return (direction || '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/[-_/]/g, ' ')
+        .replace(/\s+/g, ' ');
+}
+
+function getDirectionGroupsForDirection(direction) {
+    const text = normalizeDirectionText(direction);
+    return DIRECTION_GROUPS.filter(group => group.test(text)).map(group => group.key);
+}
+
+function matchesDirectionGroup(direction, groupKey) {
+    if (!groupKey) return true;
+    return getDirectionGroupsForDirection(direction).includes(groupKey);
+}
+
+function getAvailableDirectionGroups(arrivals) {
+    const keys = new Set();
+
+    (Array.isArray(arrivals) ? arrivals : []).forEach(arrival => {
+        if (!arrival || !arrival.direction) return;
+        getDirectionGroupsForDirection(arrival.direction).forEach(key => keys.add(key));
+    });
+
+    return DIRECTION_GROUPS.filter(group => keys.has(group.key));
+}
+
+function updateDirectionFilters(arrivals, currentDirection) {
+    const filtersDiv = document.getElementById('direction-filters');
+    if (!filtersDiv) return;
+
+    const groups = getAvailableDirectionGroups(arrivals);
+    if (groups.length === 0) {
+        filtersDiv.innerHTML = '';
+        return;
+    }
+
+    filtersDiv.innerHTML = `
+        <div class="filter-label">Filter by direction</div>
+        <div class="direction-filter-buttons" role="group" aria-label="Filter arrivals by direction">
+            <sl-button size="small" pill class="dir-filter-btn ${currentDirection === null ? 'active' : ''}" data-direction="all" aria-pressed="${currentDirection === null ? 'true' : 'false'}" onclick="filterByDirectionGroup(null, this)">All bounds</sl-button>
+            ${groups.map(group =>
+                `<sl-button size="small" pill class="dir-filter-btn ${currentDirection === group.key ? 'active' : ''}" data-direction="${group.key}" aria-pressed="${currentDirection === group.key ? 'true' : 'false'}" onclick="filterByDirectionGroup('${group.key}', this)">${group.label}</sl-button>`
+            ).join('')}
+        </div>
+    `;
+}
+
 function displaySummaryView(arrivals) {
-    renderRouteBoundSections(arrivals, selectedRoute);
+    renderRouteBoundSections(arrivals, selectedRoute, selectedDirectionGroup);
 }
 
 function displayFilteredView(route) {
-    renderRouteBoundSections(currentArrivalsData.all_arrivals || [], route);
+    renderRouteBoundSections(currentArrivalsData.all_arrivals || [], route, selectedDirectionGroup);
 }
 
 function filterByRoute(route, buttonEl) {
@@ -442,6 +508,26 @@ function filterByRoute(route, buttonEl) {
         displayFilteredView(route);
     }
 
+}
+
+function filterByDirectionGroup(directionGroup, buttonEl) {
+    selectedDirectionGroup = directionGroup;
+
+    document.querySelectorAll('.dir-filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+    });
+
+    if (buttonEl) {
+        buttonEl.classList.add('active');
+        buttonEl.setAttribute('aria-pressed', 'true');
+    }
+
+    if (selectedRoute === null) {
+        displaySummaryView(currentArrivalsData.all_arrivals || currentArrivalsData.arrivals || []);
+    } else {
+        displayFilteredView(selectedRoute);
+    }
 }
 
 function showError(message) {
@@ -486,6 +572,7 @@ async function refreshArrivals() {
         }
 
         // Update the filters in case routes changed
+        updateDirectionFilters(data.all_arrivals || data.arrivals || [], selectedDirectionGroup);
         updateRouteFilters(data.arrivals, selectedRoute);
     } catch (error) {
         showError(`Error: ${error.message}`);
@@ -510,6 +597,7 @@ async function onRouteDirectorySelect(route, buttonEl) {
     selectedDirectoryRoute = route;
     syncRouteDirectoryActive(route);
     selectedRoute = null;
+    selectedDirectionGroup = null;
     syncRouteFilterActive(null);
 
     const errorDiv = document.getElementById('error-message');
@@ -722,7 +810,7 @@ function syncRouteFilterActive(route) {
     });
 }
 
-function renderRouteBoundSections(arrivals, routeFilter = null) {
+function renderRouteBoundSections(arrivals, routeFilter = null, directionGroupFilter = null) {
     const arrivalsList = document.getElementById('arrivals-list');
     const safeArrivals = Array.isArray(arrivals) ? arrivals : [];
 
@@ -730,6 +818,7 @@ function renderRouteBoundSections(arrivals, routeFilter = null) {
     safeArrivals.forEach(arrival => {
         if (!arrival || !arrival.route || !arrival.direction) return;
         if (routeFilter && arrival.route !== routeFilter) return;
+        if (!matchesDirectionGroup(arrival.direction, directionGroupFilter)) return;
 
         if (!grouped[arrival.route]) grouped[arrival.route] = {};
         if (!grouped[arrival.route][arrival.direction]) grouped[arrival.route][arrival.direction] = [];
