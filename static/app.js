@@ -418,13 +418,11 @@ function updateRouteFilters(arrivals, currentFilter) {
 }
 
 const DIRECTION_GROUPS = [
-    { key: 'uptown', label: 'Uptown', test: text => text.includes('uptown') || text.includes('northbound') || text.includes(' n ') || text === 'n' },
-    { key: 'downtown', label: 'Downtown', test: text => text.includes('downtown') || text.includes('southbound') || text.includes(' s ') || text === 's' },
-    { key: 'queens', label: 'Queens-bound', test: text => text.includes('queens') },
-    { key: 'brooklyn', label: 'Brooklyn-bound', test: text => text.includes('brooklyn') },
-    { key: 'bronx', label: 'Bronx-bound', test: text => text.includes('bronx') },
-    { key: 'manhattan', label: 'Manhattan-bound', test: text => text.includes('manhattan') },
-    { key: 'staten_island', label: 'Staten Island-bound', test: text => text.includes('staten') }
+    { key: 'uptown', label: 'Uptown' },
+    { key: 'downtown', label: 'Downtown' },
+    { key: 'queens', label: 'Queens-bound' },
+    { key: 'brooklyn', label: 'Brooklyn-bound' },
+    { key: 'manhattan', label: 'Manhattan-bound' }
 ];
 
 function normalizeDirectionText(direction) {
@@ -438,7 +436,21 @@ function normalizeDirectionText(direction) {
 
 function getDirectionGroupsForDirection(direction) {
     const text = normalizeDirectionText(direction);
-    return DIRECTION_GROUPS.filter(group => group.test(text)).map(group => group.key);
+    const matches = [];
+
+    const isUptown = text.includes('uptown') || text.includes('northbound') || text === 'n' || text.startsWith('n ');
+    const isDowntown = text.includes('downtown') || text.includes('southbound') || text === 's' || text.startsWith('s ');
+    const isQueens = text.includes('queens') || text.includes('jamaica') || text.includes('flushing') || text.includes('astoria') || text.includes('forest hills') || text.includes('court sq') || text.includes('kew');
+    const isBrooklyn = text.includes('brooklyn') || text.includes('coney') || text.includes('flatbush') || text.includes('new lots') || text.includes('bay ridge') || text.includes('canarsie') || text.includes('borough hall') || text.includes('atlantic');
+    const isManhattan = text.includes('manhattan') || text.includes('times sq') || text.includes('hudson yards') || text.includes('inwood') || text.includes('harlem') || text.includes('world trade center') || text.includes('south ferry') || text.includes('14 st') || text.includes('34 st') || text.includes('42 st');
+
+    if (isUptown) matches.push('uptown');
+    if (isDowntown) matches.push('downtown');
+    if (isQueens) matches.push('queens');
+    if (isBrooklyn) matches.push('brooklyn');
+    if (isManhattan) matches.push('manhattan');
+
+    return matches;
 }
 
 function matchesDirectionGroup(direction, groupKey) {
@@ -447,14 +459,14 @@ function matchesDirectionGroup(direction, groupKey) {
 }
 
 function getAvailableDirectionGroups(arrivals) {
-    const keys = new Set();
+    const groupedKeys = new Set();
 
     (Array.isArray(arrivals) ? arrivals : []).forEach(arrival => {
         if (!arrival || !arrival.direction) return;
-        getDirectionGroupsForDirection(arrival.direction).forEach(key => keys.add(key));
+        getDirectionGroupsForDirection(arrival.direction).forEach(key => groupedKeys.add(key));
     });
 
-    return DIRECTION_GROUPS.filter(group => keys.has(group.key));
+    return DIRECTION_GROUPS.filter(group => groupedKeys.has(group.key));
 }
 
 function updateDirectionFilters(arrivals, currentDirection) {

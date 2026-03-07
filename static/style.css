@@ -1349,13 +1349,35 @@ sl-button.filter-route-SIR::part(base) { background-color: #003087; }
         padding: var(--space-4);
     }
 
+    .search-section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .quick-access {
+        order: 1;
+        margin-top: 0;
+    }
+
+    .route-directory {
+        order: 2;
+        margin-top: 0;
+    }
+
+    .input-group {
+        order: 3;
+    }
+
     #search-btn {
+        order: 4;
         position: static;
         bottom: auto;
         left: auto;
         right: auto;
         z-index: auto;
         display: block;
+        margin-top: 0;
     }
 
     #search-btn::part(base) {
