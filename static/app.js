@@ -7,7 +7,7 @@
 const API_BASE_URL = '';
 const RECENT_STATIONS_KEY = 'nyc_subway_recent_stations';
 const FAVORITE_STATIONS_KEY = 'nyc_subway_favorite_stations';
-const MAX_RECENT_STATIONS = 6;
+const MAX_RECENT_STATIONS = 5;
 const MAX_FAVORITE_STATIONS = 8;
 
 // Global state
@@ -24,8 +24,38 @@ document.addEventListener('DOMContentLoaded', () => {
     loadQuickAccessState();
     setupSearch();
     setupQuickAccessInteractions();
+    setupHeroLampFlicker();
     loadStations();
 });
+
+function setupHeroLampFlicker() {
+    const heroEntrance = document.querySelector('.hero-entrance');
+    if (!heroEntrance) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    function queueNextFlash() {
+        const waitMs = 1800 + Math.floor(Math.random() * 3200);
+        setTimeout(() => {
+            const modeRoll = Math.random();
+            const flashMs = 120 + Math.floor(Math.random() * 180);
+
+            if (modeRoll < 0.42) {
+                heroEntrance.classList.add('lamp-flash-left');
+            } else if (modeRoll < 0.84) {
+                heroEntrance.classList.add('lamp-flash-right');
+            } else {
+                heroEntrance.classList.add('lamp-flash-left', 'lamp-flash-right');
+            }
+
+            setTimeout(() => {
+                heroEntrance.classList.remove('lamp-flash-left', 'lamp-flash-right');
+                queueNextFlash();
+            }, flashMs);
+        }, waitMs);
+    }
+
+    queueNextFlash();
+}
 
 function loadQuickAccessState() {
     recentStationIds = getStoredStationList(RECENT_STATIONS_KEY);
@@ -87,6 +117,17 @@ function setupQuickAccessInteractions() {
 
     recentContainer.addEventListener('click', handleQuickAccessClick);
     favoriteContainer.addEventListener('click', handleQuickAccessClick);
+
+    function handleQuickAccessKeydown(event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const chip = event.target.closest('.station-chip');
+        if (!chip) return;
+        event.preventDefault();
+        chip.click();
+    }
+
+    recentContainer.addEventListener('keydown', handleQuickAccessKeydown);
+    favoriteContainer.addEventListener('keydown', handleQuickAccessKeydown);
 }
 
 function renderQuickAccess() {
@@ -122,9 +163,9 @@ function renderStationChips(container, stationIds, emptyMessage) {
         const favoriteClass = isFavorite ? ' favorite' : '';
 
         return `
-            <button class="wf-btn wf-btn--secondary wf-btn--small station-chip${favoriteClass}" data-station-id="${stationId}" type="button" title="View ${escapeHtml(stationName)}">
-                ${isFavorite ? '★' : '•'} ${escapeHtml(stationName)}
-            </button>
+            <sl-tag size="small" pill class="station-chip sl-chip-tag${favoriteClass}" data-station-id="${stationId}" title="View ${escapeHtml(stationName)}" role="button" tabindex="0">
+                ${escapeHtml(stationName)}
+            </sl-tag>
         `;
     }).join('');
 }
@@ -322,14 +363,14 @@ function displayResults(data) {
             <div class="station-header">
                 <h2>${escapeHtml(station.name)}</h2>
                 <div class="station-actions">
-                    <button id="favorite-btn" class="wf-btn wf-btn--ghost wf-icon-btn favorite-btn ${isFavorite ? 'active' : ''}" onclick="toggleFavoriteStationFromButton('${station.id}', this)" aria-label="${isFavorite ? 'Remove from favorites' : 'Save as favorite'}" aria-pressed="${isFavorite ? 'true' : 'false'}" title="${isFavorite ? 'Remove from favorites' : 'Save as favorite'}">
+                    <sl-button id="favorite-btn" size="small" circle class="sl-action-btn sl-action-btn-ghost sl-icon-btn favorite-btn ${isFavorite ? 'active' : ''}" onclick="toggleFavoriteStationFromButton('${station.id}', this)" aria-label="${isFavorite ? 'Remove from favorites' : 'Save as favorite'}" aria-pressed="${isFavorite ? 'true' : 'false'}" title="${isFavorite ? 'Remove from favorites' : 'Save as favorite'}">
                         ${isFavorite ? '★' : '☆'}
-                    </button>
-                    <button id="refresh-btn" class="wf-btn wf-btn--secondary wf-icon-btn refresh-btn" onclick="refreshArrivals()" title="Refresh arrivals" aria-label="Refresh arrivals">
+                    </sl-button>
+                    <sl-button id="refresh-btn" size="small" circle class="sl-action-btn sl-action-btn-secondary sl-icon-btn refresh-btn" onclick="refreshArrivals()" title="Refresh arrivals" aria-label="Refresh arrivals">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                         </svg>
-                    </button>
+                    </sl-button>
                 </div>
             </div>
             <div class="route-count">${routeCount} line${routeCount === 1 ? '' : 's'} active in the next 30 minutes</div>
@@ -363,9 +404,9 @@ function updateRouteFilters(arrivals, currentFilter) {
     filtersDiv.innerHTML = `
         <div class="filter-label">Filter by line</div>
         <div class="filter-buttons" role="group" aria-label="Filter arrivals by line">
-            <button class="wf-btn wf-btn--secondary wf-btn--small filter-btn ${currentFilter === null ? 'active' : ''}" data-route="all" aria-pressed="${currentFilter === null ? 'true' : 'false'}" onclick="filterByRoute(null, this)">All</button>
+            <sl-button size="small" pill class="filter-btn sl-filter-all ${currentFilter === null ? 'active' : ''}" data-route="all" aria-pressed="${currentFilter === null ? 'true' : 'false'}" onclick="filterByRoute(null, this)">All</sl-button>
             ${routes.map(route =>
-                `<button class="wf-btn wf-btn--ghost wf-btn--small filter-btn filter-route-${route} ${currentFilter === route ? 'active' : ''}" data-route="${route}" aria-pressed="${currentFilter === route ? 'true' : 'false'}" onclick="filterByRoute('${route}', this)">${route}</button>`
+                `<sl-button size="small" circle class="filter-btn sl-filter-route filter-route-${route} ${currentFilter === route ? 'active' : ''}" data-route="${route}" aria-pressed="${currentFilter === route ? 'true' : 'false'}" onclick="filterByRoute('${route}', this)">${route}</sl-button>`
             ).join('')}
         </div>
     `;
