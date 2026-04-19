@@ -180,8 +180,19 @@ function renderQuickAccess() {
     const recentContainer = document.getElementById('recent-stations');
     const favoriteContainer = document.getElementById('favorite-stations');
 
-    renderStationChips(recentContainer, recentStationIds, 'No recent stations yet.');
-    renderStationChips(favoriteContainer, favoriteStationIds, 'Tap the star to save favorites.');
+    renderStationChips(recentContainer, recentStationIds, '');
+    renderStationChips(favoriteContainer, favoriteStationIds, '');
+
+    const recentBlock = document.getElementById('quick-block-recent');
+    const favoritesBlock = document.getElementById('quick-block-favorites');
+    const quickAccess = document.getElementById('quick-access');
+
+    const hasRecent = recentStationIds.some(id => allStations.some(s => s.id === id));
+    const hasFavorites = favoriteStationIds.some(id => allStations.some(s => s.id === id));
+
+    if (recentBlock) recentBlock.hidden = !hasRecent;
+    if (favoritesBlock) favoritesBlock.hidden = !hasFavorites;
+    if (quickAccess) quickAccess.hidden = !hasRecent && !hasFavorites;
 }
 
 function renderStationChips(container, stationIds, emptyMessage) {
