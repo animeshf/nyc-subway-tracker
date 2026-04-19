@@ -90,7 +90,7 @@ body {
 }
 
 .hero {
-    padding: var(--space-3) var(--space-2) var(--space-6);
+    padding: var(--space-3) var(--space-2) var(--space-4);
 }
 
 .hero-entrance {
@@ -133,7 +133,7 @@ body {
 
 .hero-board {
     border-radius: var(--radius-xl);
-    padding: var(--space-5);
+    padding: var(--space-4) var(--space-5);
     width: 100%;
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
@@ -154,17 +154,17 @@ body {
 
 .board-title {
     font-family: var(--font-display);
-    font-size: clamp(2.1rem, 6.6vw, 3.4rem);
-    line-height: 1.02;
+    font-size: clamp(1.8rem, 5.4vw, 2.6rem);
+    line-height: 1.05;
     letter-spacing: 0.01em;
     font-weight: 500;
 }
 
 .board-subtitle {
-    margin-top: var(--space-2);
+    margin-top: var(--space-1);
     color: #d6e0ea;
-    max-width: 40ch;
-    font-size: 0.98rem;
+    max-width: 48ch;
+    font-size: 0.92rem;
     font-weight: 450;
 }
 
@@ -310,8 +310,29 @@ button.route-directory-btn.active {
     border-radius: var(--radius-xl);
 }
 
+.search-card {
+    background: #fff;
+    border: 1px solid #c9d3e0;
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    box-shadow: 0 6px 20px -12px rgba(17, 45, 78, 0.28);
+}
+
 .input-group {
     position: relative;
+}
+
+.input-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c7886;
+    pointer-events: none;
+    z-index: 2;
 }
 
 label {
@@ -325,23 +346,45 @@ label {
 }
 
 #search-btn {
+    display: block;
+    width: 100%;
     margin-top: var(--space-3);
 }
 
 #search-btn::part(base) {
     width: 100%;
-    min-height: var(--control-lg);
+    min-height: 56px;
     border-radius: var(--radius-lg);
-    font-size: var(--text-md);
-    font-weight: 600;
+    font-size: 1.05rem;
+    font-weight: 700;
     letter-spacing: 0.01em;
     border: 1px solid transparent;
-    background: #112D4E;
+    background: linear-gradient(140deg, #3f72af 0%, #112d4e 100%);
     color: #fff;
+    box-shadow: 0 10px 24px -14px rgba(17, 45, 78, 0.6);
+    transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
 }
 
 #search-btn::part(base):hover {
-    filter: brightness(1.02);
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px -14px rgba(17, 45, 78, 0.7);
+}
+
+#search-btn::part(base):active {
+    transform: translateY(0);
+}
+
+.search-btn-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    line-height: 1;
+}
+
+.search-btn-icon {
+    flex: 0 0 auto;
 }
 
 /* Keep Shoelace button content centered in both axes */
@@ -498,20 +541,26 @@ sl-button::part(label) {
 
 #station-search {
     width: 100%;
-    height: var(--control-lg);
+    height: 56px;
     border: 2px solid #bfc6d0;
     border-radius: var(--radius-lg);
-    padding: 0 var(--space-4);
+    padding: 0 var(--space-4) 0 44px;
     font-size: var(--text-lg);
     font-weight: 600;
     color: var(--ink);
     background: #fff;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#station-search::placeholder {
+    color: #8a96a4;
+    font-weight: 500;
 }
 
 #station-search:focus {
     outline: none;
     border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(63, 114, 175, 0.18);
 }
 
 .suggestions {
@@ -558,9 +607,14 @@ sl-button::part(label) {
 }
 
 .quick-access {
-    margin-top: var(--space-3);
+    margin-top: var(--space-4);
     display: grid;
     gap: var(--space-3);
+}
+
+.quick-access:empty,
+.quick-access[hidden] {
+    display: none;
 }
 
 .quick-title {
@@ -1423,34 +1477,35 @@ sl-button.filter-route-SIR::part(base) { background-color: #003087; }
         gap: var(--space-3);
     }
 
+    .search-card {
+        padding: var(--space-3);
+    }
+
     .quick-access {
-        order: 1;
         margin-top: 0;
     }
 
     .route-directory {
-        order: 2;
         margin-top: 0;
     }
 
-    .input-group {
-        order: 3;
-    }
-
     #search-btn {
-        order: 4;
         position: static;
         bottom: auto;
         left: auto;
         right: auto;
         z-index: auto;
         display: block;
-        margin-top: 0;
+        margin-top: var(--space-3);
     }
 
     #search-btn::part(base) {
         min-height: 54px;
         border-radius: var(--radius-lg);
+    }
+
+    #station-search {
+        height: 52px;
     }
 
     .chip-list {
